@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css'
 
 function App() {
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   
   const [image, setImage] = useState('');
   const [repo, setRepo] = useState('');
