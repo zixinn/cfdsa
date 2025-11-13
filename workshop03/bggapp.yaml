@@ -1,0 +1,124 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bggapp-deploy
+  namespace: bgg-ns
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bggapp
+  template:
+    metadata:
+      labels:
+        app: bggapp
+    spec:
+      containers:
+        - name: bggapp-container
+          image: chukmunnlee/bgg-app:nov-2025
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BGG_DB_USER
+              value: root
+            - name: BGG_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bgg-secret
+                  key: BGG_DB_PASSWORD
+            - name: BGG_DB_HOST
+              value: bggdb-svc
+            - name: BGG_PORT
+              value: "5000"
+          ports:
+            - name: app-port
+              containerPort: 5000
+          resources:
+            requests:
+              memory: "96Mi"
+              cpu: "64m"
+            limits:
+              memory: "96Mi"
+              cpu: "64m"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: app-port
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: app-port
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bggapp-svc
+  namespace: bgg-ns
+  labels:
+    app: bggapp
+spec:
+  type: ClusterIP
+  selector:
+    app: bggapp
+  ports:
+    - port: 5000
+      targetPort: app-port
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bggapp-ing
+  namespace: bgg-ns
+spec:
+  ingressClassName: nginx # kubectl get ingressclass
+  rules:
+    - host: bgg-146.190.201.253.sslip.io # kubectl get svc -n ingress-nginx
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bggapp-svc
+                port:
+                  number: 5000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bggapp-hpa
+  namespace: bgg-ns
+spec:
+  minReplicas: 1
+  maxReplicas: 6
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bggapp-deploy
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+#
+# helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+# helm repo list
+# helm repo update
+# helm install cfdsa-ingress ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
+#
+# kubectl apply -f config.yaml
+# kubectl apply -f bggdb.yaml
+# kubectl apply -f bggapp.yaml
+# http://bgg-146.190.201.253.sslip.io/
+#
+# kubectl apply -f metrics-server.yaml
+# kubectl apply -f bggapp.yaml
+# kubectl get hpa -n bgg-ns
+# kubectl describe hpa bggapp-hpa -n bgg-ns
+#
