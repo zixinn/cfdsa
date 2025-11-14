@@ -1,0 +1,109 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: code-pvc
+  namespace: code-ns
+spec:
+  resources:
+    requests:
+      storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: code-deploy
+  namespace: code-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: code
+  template:
+    metadata:
+      labels:
+        app: code
+    spec:
+      volumes:
+        - name: data-vol
+          persistentVolumeClaim:
+            claimName: code-pvc
+      containers:
+        - name: code-container
+          image: linuxserver/code-server:amd64-4.105.1
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: code-cm
+                  key: TZ
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: code-secret
+                  key: PASSWORD
+            - name: SUDO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: code-secret
+                  key: SUDO_PASSWORD
+            - name: DEFAULT_WORKSPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: code-cm
+                  key: DEFAULT_WORKSPACE
+            - name: PROXY_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: code-cm
+                  key: PROXY_DOMAIN
+          ports:
+            - name: code-port
+              containerPort: 8443
+          # resources:
+          #   requests:
+          #     memory: "256Mi"
+          #     cpu: "200m"
+          #   limits:
+          #     memory: "256Mi"
+          #     cpu: "200m"
+          volumeMounts:
+            - name: data-vol
+              mountPath: /config/workspace
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: code-svc
+  namespace: code-ns
+  labels:
+    app: code
+spec:
+  type: ClusterIP
+  selector:
+    app: code
+  ports:
+    - port: 8443
+      targetPort: code-port
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: code-ing
+  namespace: code-ns
+spec:
+  ingressClassName: nginx # kubectl get ingressclass
+  rules:
+    - host: code-146.190.201.253.sslip.io # kubectl get svc -n ingress-nginx
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: code-svc
+                port:
+                  number: 8443
