@@ -1,0 +1,11 @@
+{
+  "name": "workshop01-app",
+  "version": "1.0.0",
+  "scripts": {
+    "heroku-postbuild": "cd frontend && npm install && npm run build",
+    "start": "cd backend && npm install && node index.js"
+  },
+  "engines": {
+    "node": "22.12.x"
+  }
+}
